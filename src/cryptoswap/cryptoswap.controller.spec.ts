@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { CryptoswapController } from './cryptoswap.controller';
-import { CryptoswapService } from './cryptoswap.service';
+import { CryptoswapService } from './cryptoswap.binance.service';
 
 describe('AppController', () => {
   let appController: CryptoswapController;

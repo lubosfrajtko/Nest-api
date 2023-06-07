@@ -50,9 +50,15 @@ import { AuthModule } from './auth/auth.module';
       //driver: { ssl: true, authSource: 'admin' },
     }), */
     // connect to mongodb
-    MongooseModule.forRoot(`mongodb://localhost/cryptoswap`, {
+    /*MongooseModule.forRoot(`mongodb://localhost/cryptoswap`, {
       connectionName: 'mongo_db',
-    }),
+    }), */
+    MongooseModule.forRoot(
+      `mongodb+srv://${process.env.DATABASE_USER}:${process.env.DATABASE_PASSWORD}@cluster0.ejmxbox.mongodb.net/cryptoswap?retryWrites=true&w=majority`,
+      {
+        connectionName: 'mongo_db',
+      },
+    ),
     UsersModule,
     CryptoswapModule,
     AuthModule,

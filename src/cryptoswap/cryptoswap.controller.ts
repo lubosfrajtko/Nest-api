@@ -8,28 +8,32 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Request } from 'express';
-import { CryptoswapService } from './cryptoswap.service';
+import { CryptoswapBinanceService } from './cryptoswap.binance.service';
+import { CryptoswapCoinpaymentsService } from './cryptoswap.coinpayments.service';
 
 @Controller('cryptoswap')
 export class CryptoswapController {
-  constructor(private readonly service: CryptoswapService) {}
+  constructor(
+    private readonly binanceService: CryptoswapBinanceService,
+    private readonly coinpaymentsService: CryptoswapCoinpaymentsService,
+  ) {}
 
-  @Get('wallet-balances')
-  getWalletBalances(@Req() req: any) {
-    return this.service.getWalletBalances();
+  @Get('binance/wallet-balances')
+  getBinanceWalletBalances(@Req() req: any) {
+    return this.binanceService.getWalletBalances();
   }
 
-  @Get('conversions')
-  getConversions(@Req() req: any) {
-    return this.service.getConversions();
+  @Get('binance/conversions')
+  getBinanceConversions(@Req() req: any) {
+    return this.binanceService.getConversions();
   }
 
-  @Post('conversions')
-  createConversion(@Req() req: any, @Body() body: any) {
+  @Post('binance/conversions')
+  createBinanceConversion(@Req() req: any, @Body() body: any) {
     if (!body.address || !body.coinFrom || !body.coinTo || !body.value) {
       throw new HttpException('Bad request', HttpStatus.BAD_REQUEST);
     }
-    return this.service.createConversion(
+    return this.binanceService.createConversion(
       body.address,
       body.coinFrom,
       body.coinTo,
@@ -37,19 +41,53 @@ export class CryptoswapController {
     );
   }
 
-  /*
-  @Get('assets')
-  getAssets() {
-    return this.stService.getAllAssets();
+  // COINPAYMENTS
+
+  @Get('coinpayments/payments')
+  getCoinpaymentsPayments() {
+    return this.coinpaymentsService.getPayments();
   }
 
-  @Get('assets/:id')
-  getAsset(@Param() params: any) {
-    return this.stService.getAsset(params.id);
+  @Get('coinpayments/exchange-rates')
+  getCoinpaymentsExchangeRates() {
+    return this.coinpaymentsService.getExchangeRates();
   }
 
-  @Post('assets')
-  createAsset() {
-    return this.stService.createAsset();
-  } */
+  @Get('coinpayments/conversions/:id')
+  getCoinpaymentsConversionInfo(@Req() req: any) {
+    if (!req.params.id) {
+      throw new HttpException('Bad request', HttpStatus.BAD_REQUEST);
+    }
+    return this.coinpaymentsService.getConversionInfo(req.params.id);
+  }
+
+  @Get('coinpayments/conversion-limits')
+  getCoinpaymentsConversionLimits(@Req() req: any, @Body() body: any) {
+    if (!body.from || !body.to) {
+      throw new HttpException('Bad request', HttpStatus.BAD_REQUEST);
+    }
+    return this.coinpaymentsService.getConversionLimits(body.from, body.to);
+  }
+
+  @Post('coinpayments/convert-coins')
+  convertCoinpaymentsCoins() {
+    return this.coinpaymentsService.convertCoins('ETH', 'SOL', '0.029');
+  }
+
+  @Post('coinpayments/create-payment')
+  createCoinpaymentsPayment(@Body() body: any) {
+    if (!body.currency1 || !body.currency2 || !body.amount) {
+      throw new HttpException('Bad request', HttpStatus.BAD_REQUEST);
+    }
+    return this.coinpaymentsService.createPayment(
+      body.currency1,
+      body.currency2,
+      body.amount,
+    );
+  }
+
+  @Post('coinpayments/confirm-payment')
+  getCoinpaymentsConfirmPaymeny() {
+    return this.coinpaymentsService.confirmPayment();
+  }
 }

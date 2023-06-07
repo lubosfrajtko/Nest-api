@@ -17,7 +17,7 @@ const _axios = axios.create({
 });
 
 @Injectable()
-export class CryptoswapService {
+export class CryptoswapBinanceService {
   constructor(private usersService: UsersService) {}
 
   private async getSignature(_signature = '') {
@@ -64,6 +64,19 @@ export class CryptoswapService {
     //
   }
 
+  public async sendConversionRequest(reqString, coinFrom, coinTo) {
+    const { signature, timestamp } = await this.getSignature(reqString);
+
+    const res = await _axios.post('/sapi/v1/convert/getQuote', {
+      fromAsset: coinFrom,
+      toAsset: coinTo,
+      signature,
+      timestamp,
+    });
+
+    return res.data;
+  }
+
   public getConversions(): string {
     return '';
   }
@@ -79,6 +92,14 @@ export class CryptoswapService {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+
+    // send conversion request
+    const conversionReq = await this.sendConversionRequest(
+      `fromAsset=${coinFrom}&toAsset=${coinTo}`,
+      coinFrom,
+      coinTo,
+    );
+    console.log(conversionReq);
 
     //  fs.writeFileSync('./output.txt', JSON.stringify(addresses));
 
