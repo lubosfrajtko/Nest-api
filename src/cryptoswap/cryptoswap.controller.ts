@@ -74,20 +74,37 @@ export class CryptoswapController {
   }
 
   @Post('coinpayments/convert-coins')
-  convertCoinpaymentsCoins() {
-    return this.coinpaymentsService.convertCoins('ETH', 'SOL', '0.009');
+  convertCoinpaymentsCoins(@Body() body: any) {
+    return this.coinpaymentsService.convertCoins(
+      body.currencyFrom,
+      body.currencyTo,
+      body.amount,
+      body.address,
+    );
+  }
+
+  @Post('coinpayments/create-conversion')
+  createCoinpaymentsConversion(@Body() body: any) {
+    if (!body.currency1 || !body.currency2 || !body.amount || !body.address) {
+      throw new HttpException('Bad request', HttpStatus.BAD_REQUEST);
+    }
+    return this.coinpaymentsService.createConversion(
+      body.currency1,
+      body.currency2,
+      body.amount,
+      body.address,
+    );
   }
 
   @Post('coinpayments/create-payment')
   createCoinpaymentsPayment(@Body() body: any) {
-    if (!body.currency1 || !body.currency2 || !body.amount || !body.address) {
+    if (!body.currency1 || !body.currency2 || !body.amount) {
       throw new HttpException('Bad request', HttpStatus.BAD_REQUEST);
     }
     return this.coinpaymentsService.createPayment(
       body.currency1,
       body.currency2,
       body.amount,
-      body.address,
     );
   }
 

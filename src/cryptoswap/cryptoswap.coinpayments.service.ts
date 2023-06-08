@@ -50,6 +50,8 @@ export class CryptoswapCoinpaymentsService {
         const conversionInfo = await this.getConversionInfo(
           conversion.conversion_id,
         );
+        console.log(conversion);
+        console.log(conversionInfo);
 
         // error status codes
         if (
@@ -193,40 +195,42 @@ export class CryptoswapCoinpaymentsService {
     return '';
   }
 
-  public async convertCoins(from, to, amount) {
+  public async convertCoins(from, to, amount, addressTo) {
+    if (!from || !to || !amount || !addressTo) {
+      throw new HttpException('Bad request', HttpStatus.BAD_REQUEST);
+    }
+
     const signature = await this.getSignature(
-      `cmd=convert&from=${from}&to=${to}&amount=${amount}`,
+      `cmd=convert&from=${from}&to=${to}&amount=${amount}&address=${addressTo}`,
     );
+    let data = {
+      version: 1,
+      key: secretPublicKey,
+      cmd: 'convert',
+      from: from,
+      to: to,
+      amount: amount,
+      address: addressTo,
+      //  address: '0x8Ee71d6DA7aE753911b21913FE538de8ba76DDc4',
+    };
 
-    const res = await _axios.post(
-      '',
-      {
-        version: 1,
-        key: secretPublicKey,
-        cmd: 'convert',
-        from: from,
-        to: to,
-        amount: amount,
+    const res = await _axios.post('', data, {
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        HMAC: signature,
       },
-      {
-        headers: {
-          'content-type': 'application/x-www-form-urlencoded',
-          HMAC: signature,
-        },
-      },
-    );
+    });
     //if (!res.data.error !== 'ok') return false;
-
-    console.log(res);
+    console.log(res.data);
 
     return res.data.result.id;
   }
 
-  public async createPayment(currency1, currency2, amount, address) {
+  public async createConversion(currency1, currency2, amount, address) {
     try {
       // create payment in coinpayments
       const signature = await this.getSignature(
-        `cmd=create_transaction&currency1=${currency1}&currency2=${currency2}&amount=${amount}&buyer_email=lubos.frajtko%40gmail.com&ipn_url=http%3A%2F%2F65.109.171.191%3A3003%2Fcryptoswap%2Fcoinpayments%2Fconfirm-payment`,
+        `cmd=create_transaction&currency1=${currency1}&currency2=${currency1}&amount=${amount}&buyer_email=lubos.frajtko%40gmail.com&ipn_url=http%3A%2F%2F65.109.171.191%3A3003%2Fcryptoswap%2Fcoinpayments%2Fconfirm-payment`,
       );
 
       const res = await _axios.post(
@@ -236,7 +240,7 @@ export class CryptoswapCoinpaymentsService {
           key: secretPublicKey,
           cmd: 'create_transaction',
           currency1: currency1,
-          currency2: currency2,
+          currency2: currency1,
           amount: amount,
           buyer_email: 'lubos.frajtko@gmail.com',
           ipn_url:
@@ -271,6 +275,41 @@ export class CryptoswapCoinpaymentsService {
     }
   }
 
+  public async createPayment(currency1, currency2, amount) {
+    try {
+      // create payment in coinpayments
+      const signature = await this.getSignature(
+        `cmd=create_transaction&currency1=${currency1}&currency2=${currency2}&amount=${amount}&buyer_email=lubos.frajtko%40gmail.com&ipn_url=http%3A%2F%2F65.109.171.191%3A3003%2Fcryptoswap%2Fcoinpayments%2Fconfirm-payment`,
+      );
+
+      const res = await _axios.post(
+        '',
+        {
+          version: 1,
+          key: secretPublicKey,
+          cmd: 'create_transaction',
+          currency1: currency1,
+          currency2: currency2,
+          amount: amount,
+          buyer_email: 'lubos.frajtko@gmail.com',
+          ipn_url:
+            'http://65.109.171.191:3003/cryptoswap/coinpayments/confirm-payment',
+        },
+        {
+          headers: {
+            'content-type': 'application/x-www-form-urlencoded',
+            HMAC: signature,
+          },
+        },
+      );
+      if (res.data.error !== 'ok') throw new Error('Error occured');
+
+      return res.data;
+    } catch (e) {
+      console.log(e);
+    }
+  }
+
   public async confirmPayment(data) {
     try {
       if (data.status_text === 'Complete') {
@@ -292,7 +331,9 @@ export class CryptoswapCoinpaymentsService {
           conversion.currencyFrom,
           conversion.currencyTo,
           conversion.currencyFromAmount,
+          conversion.address,
         );
+        if (!conversionId) throw new Error('Error occured');
         console.log(conversionId);
 
         // save status completed conversion
