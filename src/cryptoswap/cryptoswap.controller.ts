@@ -1,4 +1,5 @@
 import {
+  Logger,
   Controller,
   Get,
   Req,
@@ -6,10 +7,13 @@ import {
   Body,
   HttpException,
   HttpStatus,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { CryptoswapBinanceService } from './cryptoswap.binance.service';
 import { CryptoswapCoinpaymentsService } from './cryptoswap.coinpayments.service';
+//
+import { Public } from '../auth/authPublic.decorator';
 
 @Controller('cryptoswap')
 export class CryptoswapController {
@@ -71,23 +75,31 @@ export class CryptoswapController {
 
   @Post('coinpayments/convert-coins')
   convertCoinpaymentsCoins() {
-    return this.coinpaymentsService.convertCoins('ETH', 'SOL', '0.029');
+    return this.coinpaymentsService.convertCoins('ETH', 'SOL', '0.009');
   }
 
   @Post('coinpayments/create-payment')
   createCoinpaymentsPayment(@Body() body: any) {
-    if (!body.currency1 || !body.currency2 || !body.amount) {
+    if (!body.currency1 || !body.currency2 || !body.amount || !body.address) {
       throw new HttpException('Bad request', HttpStatus.BAD_REQUEST);
     }
     return this.coinpaymentsService.createPayment(
       body.currency1,
       body.currency2,
       body.amount,
+      body.address,
     );
   }
 
+  @Public()
   @Post('coinpayments/confirm-payment')
-  getCoinpaymentsConfirmPaymeny() {
-    return this.coinpaymentsService.confirmPayment();
+  getCoinpaymentsConfirmPayment(@Body() body: any) {
+    // check access
+    const merchant = body.merchant ? body.merchant : null;
+    if (merchant !== process.env.COINPAYMENTS_MERCHANT_ID) {
+      throw new UnauthorizedException();
+    }
+    // check also hmac from header to finish security
+    return this.coinpaymentsService.confirmPayment(body);
   }
 }

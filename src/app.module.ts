@@ -7,6 +7,7 @@ import {
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { LoggerMiddleware } from './middleware/logger.middleware';
+import { ScheduleModule } from '@nestjs/schedule';
 // modules
 import { CryptoswapModule } from './cryptoswap/cryptoswap.module';
 import { UsersModule } from './users/users.module';
@@ -23,6 +24,7 @@ import { AuthModule } from './auth/auth.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.dev.env'] }),
+
     // connect to mysql db
     /*TypeOrmModule.forRoot({
       type: 'mysql',
@@ -59,6 +61,7 @@ import { AuthModule } from './auth/auth.module';
         connectionName: 'mongo_db',
       },
     ),
+    ScheduleModule.forRoot(),
     UsersModule,
     CryptoswapModule,
     AuthModule,

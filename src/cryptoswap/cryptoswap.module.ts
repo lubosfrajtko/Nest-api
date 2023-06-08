@@ -5,13 +5,13 @@ import { CryptoswapBinanceService } from './cryptoswap.binance.service';
 import { CryptoswapCoinpaymentsService } from './cryptoswap.coinpayments.service';
 import { MongooseModule } from '@nestjs/mongoose';
 
-import { Payment, PaymentSchema } from './payment.schema';
+import { Conversion, ConversionSchema } from './conversion.schema';
 
 @Module({
   imports: [
     UsersModule,
     MongooseModule.forFeature(
-      [{ name: Payment.name, schema: PaymentSchema }],
+      [{ name: Conversion.name, schema: ConversionSchema }],
       'mongo_db',
     ),
   ],

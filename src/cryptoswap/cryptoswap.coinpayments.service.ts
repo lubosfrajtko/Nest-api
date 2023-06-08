@@ -1,9 +1,11 @@
-import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { UsersService } from '../users/users.service';
 import axios from 'axios';
 import { Model } from 'mongoose';
-import { Payment } from './payment.schema';
+import { Conversion } from './conversion.schema';
 import { InjectModel } from '@nestjs/mongoose';
+import { sign } from 'crypto';
 const crypto = require('crypto');
 
 const apiKey =
@@ -25,8 +27,59 @@ const _axios = axios.create({
 export class CryptoswapCoinpaymentsService {
   constructor(
     private usersService: UsersService,
-    @InjectModel(Payment.name, 'mongo_db') private paymentModel: Model<Payment>,
+    @InjectModel(Conversion.name, 'mongo_db')
+    private conversionModel: Model<Conversion>,
   ) {}
+
+  private readonly logger = new Logger(CryptoswapCoinpaymentsService.name);
+
+  /**
+   * Check conversions
+   */
+  @Cron('1 * * * * *') // every minute in first second
+  async checkConvertions() {
+    this.logger.debug('Check conversions');
+    // get conversions
+    const conversions = await this.conversionModel.find().exec();
+    for (let conversion of conversions) {
+      if (
+        conversion.paymentStatus === 'completed' &&
+        (conversion.conversionStatus === 'waiting' ||
+          conversion.conversionStatus === 'sent')
+      ) {
+        const conversionInfo = await this.getConversionInfo(
+          conversion.conversion_id,
+        );
+
+        // error status codes
+        if (
+          conversionInfo.status === -1 ||
+          conversionInfo.status === -2 ||
+          conversionInfo.status === -3
+        ) {
+          Object.assign(conversion, {
+            conversionStatus: 'cancelled',
+          });
+          await conversion.save();
+        }
+        // funds sent
+        else if (conversionInfo.status === 1) {
+          Object.assign(conversion, {
+            conversionStatus: 'sent',
+          });
+          await conversion.save();
+        }
+        // conversion complete
+        else if (conversionInfo.status === 2) {
+          Object.assign(conversion, {
+            conversionStatus: 'completed',
+          });
+          await conversion.save();
+        }
+      }
+    }
+  }
+  //
 
   private async getSignature(_signatureString = '') {
     const signtureString = `version=1&key=${secretPublicKey}${
@@ -133,19 +186,11 @@ export class CryptoswapCoinpaymentsService {
       },
     );
 
-    return res.data;
+    return res.data.result;
   }
 
   public getConversions(): string {
     return '';
-  }
-
-  public async createConversion(userAddress, coinFrom, coinTo, value) {
-    // create conversion in db
-    // get conversion info
-    // create payment
-    // check payment
-    // convert crypto and send crypto to user
   }
 
   public async convertCoins(from, to, amount) {
@@ -170,42 +215,97 @@ export class CryptoswapCoinpaymentsService {
         },
       },
     );
+    //if (!res.data.error !== 'ok') return false;
 
-    return res.data;
+    console.log(res);
+
+    return res.data.result.id;
   }
 
-  public async createPayment(currency1, currency2, amount) {
-    const signature = await this.getSignature(
-      `cmd=create_transaction&currency1=${currency1}&currency2=${currency2}&amount=${amount}&buyer_email=lubos.frajtko%40gmail.com`,
-    );
+  public async createPayment(currency1, currency2, amount, address) {
+    try {
+      // create payment in coinpayments
+      const signature = await this.getSignature(
+        `cmd=create_transaction&currency1=${currency1}&currency2=${currency2}&amount=${amount}&buyer_email=lubos.frajtko%40gmail.com&ipn_url=http%3A%2F%2F65.109.171.191%3A3003%2Fcryptoswap%2Fcoinpayments%2Fconfirm-payment`,
+      );
 
-    const res = await _axios.post(
-      '',
-      {
-        version: 1,
-        key: secretPublicKey,
-        cmd: 'create_transaction',
-        currency1: currency1,
-        currency2: currency2,
-        amount: amount,
-        buyer_email: 'lubos.frajtko@gmail.com',
-      },
-      {
-        headers: {
-          'content-type': 'application/x-www-form-urlencoded',
-          HMAC: signature,
+      const res = await _axios.post(
+        '',
+        {
+          version: 1,
+          key: secretPublicKey,
+          cmd: 'create_transaction',
+          currency1: currency1,
+          currency2: currency2,
+          amount: amount,
+          buyer_email: 'lubos.frajtko@gmail.com',
+          ipn_url:
+            'http://65.109.171.191:3003/cryptoswap/coinpayments/confirm-payment',
         },
-      },
-    );
+        {
+          headers: {
+            'content-type': 'application/x-www-form-urlencoded',
+            HMAC: signature,
+          },
+        },
+      );
+      if (res.data.error !== 'ok') throw new Error('Error occured');
 
-    return res.data;
+      // create conversion
+      const conversion = new Conversion();
+      Object.assign(conversion, {
+        txn_id: res.data.result.txn_id,
+        address: address,
+        checkoutUrl: res.data.result.checkout_url,
+        currencyFrom: currency1,
+        currencyTo: currency2,
+        currencyFromAmount: amount,
+        currencyToAmount: 0,
+      });
+      const newConversion = new this.conversionModel(conversion);
+      await newConversion.save();
+
+      return newConversion;
+    } catch (e) {
+      console.log(e);
+    }
   }
 
-  public async confirmPayment() {
-    const payment = new Payment();
-    Object.assign(payment, { id: new Date(), completed: true });
-    const newPayment = new this.paymentModel(payment);
-    await newPayment.save();
-    return newPayment;
+  public async confirmPayment(data) {
+    try {
+      if (data.status_text === 'Complete') {
+        // get conversion
+        const conversion = await this.conversionModel.findOne({
+          txn_id: data.txn_id,
+        });
+        console.log(conversion);
+        if (!conversion) throw new Error('Error occured');
+
+        // save status completed conversion
+        Object.assign(conversion, {
+          paymentStatus: 'completed',
+        });
+        await conversion.save();
+
+        // execute conversion
+        const conversionId = await this.convertCoins(
+          conversion.currencyFrom,
+          conversion.currencyTo,
+          conversion.currencyFromAmount,
+        );
+        console.log(conversionId);
+
+        // save status completed conversion
+        Object.assign(conversion, {
+          conversion_id: conversionId,
+          conversionStatus: 'waiting',
+        });
+        await conversion.save();
+
+        return true;
+      }
+    } catch (e) {
+      console.log(e);
+    }
   }
 }
