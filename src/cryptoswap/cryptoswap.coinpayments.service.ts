@@ -44,39 +44,72 @@ export class CryptoswapCoinpaymentsService {
     for (let conversion of conversions) {
       if (
         conversion.paymentStatus === 'completed' &&
-        (conversion.conversionStatus === 'waiting' ||
+        (conversion.conversionStatus === 'active' ||
+          conversion.conversionStatus === 'waiting' ||
           conversion.conversionStatus === 'sent')
       ) {
-        const conversionInfo = await this.getConversionInfo(
-          conversion.conversion_id,
-        );
-        console.log(conversion);
-        console.log(conversionInfo);
+        // retry make conversion
+        if (!conversion.conversion_id) {
+          if (conversion.conversionAttempts <= 5) {
+            console.log(
+              'retry convertion attempt' + (conversion.conversionAttempts + 1),
+            );
+            const conversionId = await this.convertCoins(
+              conversion.currencyFrom,
+              conversion.currencyTo,
+              conversion.currencyFromAmount,
+              conversion.address,
+            );
+            if (!conversionId) {
+              Object.assign(conversion, {
+                conversionStatus: 'active',
+                conversionAttempts: conversion.conversionAttempts + 1,
+              });
+            } else {
+              Object.assign(conversion, {
+                conversion_id: conversionId,
+                conversionStatus: 'waiting',
+                conversionAttempts: 1,
+              });
+            }
+          } else {
+            Object.assign(conversion, {
+              conversionStatus: 'failed',
+            });
+          }
+          await conversion.save();
+        } else {
+          const conversionInfo = await this.getConversionInfo(
+            conversion.conversion_id,
+          );
+          console.log(conversion);
+          console.log(conversionInfo);
 
-        // error status codes
-        if (
-          conversionInfo.status === -1 ||
-          conversionInfo.status === -2 ||
-          conversionInfo.status === -3
-        ) {
-          Object.assign(conversion, {
-            conversionStatus: 'cancelled',
-          });
-          await conversion.save();
-        }
-        // funds sent
-        else if (conversionInfo.status === 1) {
-          Object.assign(conversion, {
-            conversionStatus: 'sent',
-          });
-          await conversion.save();
-        }
-        // conversion complete
-        else if (conversionInfo.status === 2) {
-          Object.assign(conversion, {
-            conversionStatus: 'completed',
-          });
-          await conversion.save();
+          // error status codes
+          if (
+            conversionInfo.status === -1 ||
+            conversionInfo.status === -2 ||
+            conversionInfo.status === -3
+          ) {
+            Object.assign(conversion, {
+              conversionStatus: 'cancelled',
+            });
+            await conversion.save();
+          }
+          // funds sent
+          else if (conversionInfo.status === 1) {
+            Object.assign(conversion, {
+              conversionStatus: 'sent',
+            });
+            await conversion.save();
+          }
+          // conversion complete
+          else if (conversionInfo.status === 2) {
+            Object.assign(conversion, {
+              conversionStatus: 'completed',
+            });
+            await conversion.save();
+          }
         }
       }
     }
@@ -257,14 +290,16 @@ export class CryptoswapCoinpaymentsService {
 
       // create conversion
       const conversion = new Conversion();
+      const conversionFee = (amount / 100) * 3; // 3% conversion fee
       Object.assign(conversion, {
         txn_id: res.data.result.txn_id,
         address: address,
         checkoutUrl: res.data.result.checkout_url,
         currencyFrom: currency1,
         currencyTo: currency2,
-        currencyFromAmount: amount,
+        currencyFromAmount: amount - conversionFee,
         currencyToAmount: 0,
+        conversionFee: conversionFee,
       });
       const newConversion = new this.conversionModel(conversion);
       await newConversion.save();
@@ -333,14 +368,18 @@ export class CryptoswapCoinpaymentsService {
           conversion.currencyFromAmount,
           conversion.address,
         );
-        if (!conversionId) throw new Error('Error occured');
-        console.log(conversionId);
-
-        // save status completed conversion
-        Object.assign(conversion, {
-          conversion_id: conversionId,
-          conversionStatus: 'waiting',
-        });
+        if (!conversionId) {
+          Object.assign(conversion, {
+            conversionStatus: 'active',
+            conversionAttempts: 0,
+          });
+        } else {
+          Object.assign(conversion, {
+            conversion_id: conversionId,
+            conversionStatus: 'waiting',
+            conversionAttempts: 0,
+          });
+        }
         await conversion.save();
 
         return true;

@@ -11,7 +11,7 @@ export type ConversionDocument = HydratedDocument<Conversion>;
 // currencyTo
 // currencyToAmount
 // paymentStatus - waiting, completed
-// convertStatus - inactive, waiting, send, completed, cancelled
+// convertStatus - inactive, active, waiting, send, completed, cancelled
 
 @Schema()
 export class Conversion {
@@ -46,6 +46,12 @@ export class Conversion {
 
   @Prop({ default: 'inactive' })
   conversionStatus: string;
+
+  @Prop()
+  conversionAttempts: number;
+
+  @Prop({ required: true })
+  conversionFee: number;
 }
 
 export const ConversionSchema = SchemaFactory.createForClass(Conversion);
