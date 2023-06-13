@@ -170,7 +170,13 @@ export class CryptoswapCoinpaymentsService {
       },
     );
 
-    return res.data;
+    const data = Object.values(res.data.result);
+
+    const onlyCryptoToConvert = data.filter(
+      (item: any) => item.can_convert || item.isFiat,
+    );
+
+    return { data: onlyCryptoToConvert, length: onlyCryptoToConvert.length };
 
     //
   }

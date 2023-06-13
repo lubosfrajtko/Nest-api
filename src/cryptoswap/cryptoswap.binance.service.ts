@@ -5,9 +5,9 @@ import fs from 'fs';
 const crypto = require('crypto');
 
 const apiKey =
-  'wzBqglTdIf9FSycvn9si6k2U3kCIWgrBlIlnYku407sTvUA9L85oaU6f4EreQbsw';
+  'N1wz2Uf4opuSqlvK1M1GTac97l6puFB68e7B9W18D711qSJuttx9MX1LzFHyYG5Y';
 const secretKey =
-  'IGv9ywym63SmdbUpM03vbCzXktfV59WjFYpSfsdE1cjWITOYMXCJqlAjN7HOkvWS';
+  'CZBnnJILtO3hbm51ikWjBjuaNF2B32jJG9aUHP1B6TXeo4pj8754hKAeVdIuN0rs';
 
 const _axios = axios.create({
   baseURL: 'https://api1.binance.com',
@@ -94,15 +94,66 @@ export class CryptoswapBinanceService {
     }
 
     // send conversion request
-    const conversionReq = await this.sendConversionRequest(
+    /*const conversionReq = await this.sendConversionRequest(
       `fromAsset=${coinFrom}&toAsset=${coinTo}`,
       coinFrom,
       coinTo,
     );
-    console.log(conversionReq);
+    console.log(conversionReq); */
 
-    //  fs.writeFileSync('./output.txt', JSON.stringify(addresses));
+    // /sapi/v1/convert/exchangeInfo
 
+    /*
+    const res = await _axios.get('/sapi/v1/convert/exchangeInfo', {
+      params: {
+        fromAsset: coinFrom,
+        toAsset: coinTo,
+        signature,
+        timestamp,
+      },
+    });
+    console.log(res); */
+
+    try {
+      const { signature, timestamp } = await this.getSignature(
+        `startTime=1686591932198&endTime=1686591232198`,
+      );
+      const res = await _axios.get('/sapi/v1/convert/tradeFlow', {
+        params: {
+          // startTime: 1686586044617,
+          // endTime: 1686588244617,
+          startTime: 1686591932198,
+          endTime: 1686591232198,
+          signature,
+          timestamp,
+        },
+      });
+      console.log(res);
+
+      /*
+      const { signature, timestamp } = await this.getSignature(``);
+      const res = await _axios.get('/sapi/v1/bswap/swap', {
+        params: {
+          //startTime: 1686585744617,
+          // endTime: 1686588244617,
+          signature,
+          timestamp,
+        },
+      });
+      console.log(res); */
+
+      /*
+      const res = await _axios.post('/sapi/v1/convert/getQuote', {
+        fromAsset: coinFrom,
+        toAsset: coinTo,
+        signature,
+        timestamp,
+      });
+
+      console.log(res); */
+    } catch (e) {
+      console.log(e);
+    }
     return coinFromAddress;
 
     // send crypto to binance wallet
